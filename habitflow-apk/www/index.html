@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>HabitFlow - Daily Goal & Streak Tracker</title>
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <!-- Google Fonts: Inter -->
+    <link rel="stylesheet" href="vendor/inter.css">
+    <!-- Lucide Icons -->
+    <script src="vendor/lucide.min.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="vendor/confetti.browser.min.js"></script>
+    
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.3);
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.5);
+        }
+        
+        /* Checkmark bounce animation */
+        @keyframes checkPop {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+        .animate-check {
+            animation: checkPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        /* Flame pulse */
+        @keyframes flamePulse {
+            0%, 100% { transform: scale(1) rotate(-2deg); }
+            50% { transform: scale(1.12) rotate(2deg); }
+        }
+        .streak-active {
+            animation: flamePulse 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-200 selection:bg-brand-500 selection:text-white pb-16">
+
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-30 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800/80 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-violet-500 flex items-center justify-center shadow-lg shadow-brand-500/25 text-white">
+                    <i data-lucide="flame" class="w-6 h-6 fill-current"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-tight leading-none flex items-center gap-2">
+                        HabitFlow
+                        <span class="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-brand-100 dark:bg-brand-900/60 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">Pro</span>
+                    </h1>
+                    <p id="current-date-display" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Loading week...</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-3">
+                <!-- Quick action: Complete Today -->
+                <button onclick="openAddModal()" class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-500 active:scale-[0.98] text-white font-medium text-sm px-4 py-2.5 rounded-xl shadow-md shadow-brand-600/20 transition-all cursor-pointer">
+                    <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i>
+                    <span>New Habit</span>
+                </button>
+
+                <!-- Reset Demo Data -->
+                <button onclick="openResetModal()" title="Reset to Default Data" class="p-2.5 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                </button>
+
+                <!-- Theme Toggle -->
+                <button id="theme-toggle" onclick="toggleTheme()" title="Toggle Light/Dark Mode" class="p-2.5 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-amber-400"></i>
+                    <i data-lucide="moon" class="w-4 h-4 block dark:hidden text-slate-700"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+
+        <!-- KPI Summary Cards -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1: Today's Progress -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Today's Goals</p>
+                    <div class="flex items-baseline gap-2 mt-1">
+                        <h2 id="stat-today" class="text-2xl sm:text-3xl font-extrabold">0/0</h2>
+                        <span id="stat-today-pct" class="text-xs font-semibold text-emerald-500">0%</span>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Completed today</p>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+                    <i data-lucide="check-circle-2" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Card 2: Weekly Completion Rate -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Weekly Rate</p>
+                    <div class="flex items-baseline gap-2 mt-1">
+                        <h2 id="stat-weekly-rate" class="text-2xl sm:text-3xl font-extrabold">0%</h2>
+                    </div>
+                    <p id="stat-weekly-fraction" class="text-xs text-slate-500 dark:text-slate-400 mt-1">0 of 0 check-ins</p>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-500 shrink-0">
+                    <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Card 3: Best Active Streak -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Best Streak</p>
+                    <div class="flex items-baseline gap-1.5 mt-1">
+                        <h2 id="stat-best-streak" class="text-2xl sm:text-3xl font-extrabold">0</h2>
+                        <span class="text-xs font-medium text-slate-400">days</span>
+                    </div>
+                    <p id="stat-best-habit" class="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate max-w-[130px]">Keep going!</p>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                    <i data-lucide="flame" class="w-6 h-6 fill-amber-500/20"></i>
+                </div>
+            </div>
+
+            <!-- Card 4: Perfect Days -->
+            <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Perfect Days</p>
+                    <div class="flex items-baseline gap-1.5 mt-1">
+                        <h2 id="stat-perfect-days" class="text-2xl sm:text-3xl font-extrabold">0</h2>
+                        <span class="text-xs font-medium text-slate-400">/ 7 days</span>
+                    </div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">100% habits done</p>
+                </div>
+                <div class="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-500 shrink-0">
+                    <i data-lucide="award" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Workspace Grid: Left = Habit Matrix, Right = Charts & Analytics -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- Left Column: Weekly Habit Check-in Matrix (7 cols on lg) -->
+            <section class="lg:col-span-7 xl:col-span-8 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                <!-- Matrix Header -->
+                <div class="p-5 border-b border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-base font-bold">Weekly Habit Matrix</h2>
+                            <span id="active-Day-Badge" class="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Active Week</span>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tap any day cell to log or update your daily habit completion</p>
+                    </div>
+
+                    <!-- Category Filter Pills -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="category-filters">
+                        <button onclick="setFilter('all')" data-filter="all" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-white dark:bg-white dark:text-slate-900 transition-all shrink-0">All</button>
+                        <button onclick="setFilter('Health')" data-filter="Health" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0">Health</button>
+                        <button onclick="setFilter('Mind')" data-filter="Mind" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0">Mind</button>
+                        <button onclick="setFilter('Work')" data-filter="Work" class="filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0">Work</button>
+                    </div>
+                </div>
+
+                <!-- Scrollable Matrix Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[640px]">
+                        <thead>
+                            <tr id="matrix-days-header" class="border-b border-slate-200/70 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                <!-- Populated dynamically by JS -->
+                            </tr>
+                        </thead>
+                        <tbody id="habits-table-body" class="divide-y divide-slate-200/60 dark:divide-slate-800/70 text-sm">
+                            <!-- Populated dynamically by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State (Hidden when habits exist) -->
+                <div id="empty-state" class="hidden py-14 px-4 text-center">
+                    <div class="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 mx-auto flex items-center justify-center text-slate-400 mb-3">
+                        <i data-lucide="calendar-plus" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="font-bold text-base">No habits found</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto mt-1 mb-4">Start building positive routines by adding your first daily habit to track.</p>
+                    <button onclick="openAddModal()" class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-medium text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Create First Habit
+                    </button>
+                </div>
+
+                <!-- Matrix Footer Tip -->
+                <div class="px-5 py-3 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-block w-2 h-2 rounded-full bg-brand-500"></span>
+                        <span>Current day column is highlighted for quick logging.</span>
+                    </div>
+                    <button onclick="checkAllToday()" class="text-brand-600 dark:text-brand-400 hover:underline font-medium flex items-center gap-1">
+                        <i data-lucide="check-check" class="w-3.5 h-3.5"></i>
+                        Complete all for today
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Column: Visual Weekly Completion Chart & Streak Leaderboard (5 cols on lg) -->
+            <aside class="lg:col-span-5 xl:col-span-4 space-y-6">
+                
+                <!-- Card 1: Visual Weekly Completion Bar & Trend Chart -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="font-bold text-base">Weekly Completion Chart</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Daily goal achievement across the week</p>
+                        </div>
+                        <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                            <button onclick="switchChartType('bar')" id="btn-chart-bar" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 shadow-sm text-slate-900 dark:text-white transition-all">Bars</button>
+                            <button onclick="switchChartType('area')" id="btn-chart-area" class="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">Curve</button>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Interactive Chart Container -->
+                    <div id="chart-container" class="pt-4 pb-2">
+                        <!-- Bar Chart View -->
+                        <div id="bar-chart-view" class="h-48 flex items-end justify-between gap-2 sm:gap-3 pt-6 px-2 border-b border-slate-200/70 dark:border-slate-800 relative">
+                            <!-- Horizontal grid lines -->
+                            <div class="absolute inset-x-0 top-6 border-t border-dashed border-slate-200 dark:border-slate-800/80 pointer-events-none flex justify-end">
+                                <span class="text-[10px] text-slate-400 -mt-3.5 pr-1">100%</span>
+                            </div>
+                            <div class="absolute inset-x-0 top-1/2 border-t border-dashed border-slate-200 dark:border-slate-800/80 pointer-events-none flex justify-end">
+                                <span class="text-[10px] text-slate-400 -mt-3.5 pr-1">50%</span>
+                            </div>
+                            <!-- Bars injected via JS -->
+                            <div id="bars-wrapper" class="w-full h-full flex items-end justify-between gap-2 z-10"></div>
+                        </div>
+
+                        <!-- SVG Smooth Area Curve View (Hidden by default) -->
+                        <div id="area-chart-view" class="hidden h-48 relative pt-4">
+                            <svg id="area-svg" class="w-full h-full overflow-visible" viewBox="0 0 320 150" preserveAspectRatio="none"></svg>
+                            <div id="area-labels" class="flex justify-between px-2 mt-2 text-xs text-slate-500"></div>
+                        </div>
+                    </div>
+
+                    <!-- Daily Breakdown Legend -->
+                    <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <span id="chart-insight-text">Best day: Loading...</span>
+                        <span id="chart-avg-badge" class="font-semibold text-brand-500">0% avg</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Habit Streak & Consistency Leaderboard -->
+                <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="font-bold text-base flex items-center gap-2">
+                                Streak Leaderboard
+                                <i data-lucide="zap" class="w-4 h-4 text-amber-500 fill-amber-500"></i>
+                            </h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Current momentum & weekly consistency</p>
+                        </div>
+                    </div>
+
+                    <div id="streak-leaderboard" class="space-y-3.5">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </div>
+
+            </aside>
+        </div>
+    </main>
+
+    <!-- Add New Habit Modal -->
+    <div id="add-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl transform transition-all" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-base">Create New Habit</h3>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Define a daily ritual to track this week</p>
+                    </div>
+                </div>
+                <button onclick="closeAddModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="add-habit-form" onsubmit="handleCreateHabit(event)" class="mt-4 space-y-4">
+                <!-- Habit Title -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Habit Name *</label>
+                    <input type="text" id="habit-name-input" required maxlength="42" placeholder="e.g., Read 20 pages, Morning Run, Meditate" 
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+                </div>
+
+                <!-- Category & Goal Target Row -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Category</label>
+                        <select id="habit-category-input" class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="Health">🏃 Health & Fitness</option>
+                            <option value="Mind">🧠 Mindfulness</option>
+                            <option value="Work">💻 Deep Work</option>
+                            <option value="Growth">📚 Learning</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Weekly Goal</label>
+                        <select id="habit-target-input" class="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                            <option value="7">Every day (7x)</option>
+                            <option value="5">Weekdays (5x)</option>
+                            <option value="4">4 times / week</option>
+                            <option value="3">3 times / week</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Color Accent Picker -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Color Theme</label>
+                    <div class="flex items-center gap-3" id="color-picker">
+                        <button type="button" onclick="selectColor('indigo')" data-color="indigo" class="color-opt w-8 h-8 rounded-full bg-indigo-500 ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-900 transition-transform scale-110"></button>
+                        <button type="button" onclick="selectColor('emerald')" data-color="emerald" class="color-opt w-8 h-8 rounded-full bg-emerald-500 opacity-70 hover:opacity-100 transition-transform"></button>
+                        <button type="button" onclick="selectColor('rose')" data-color="rose" class="color-opt w-8 h-8 rounded-full bg-rose-500 opacity-70 hover:opacity-100 transition-transform"></button>
+                        <button type="button" onclick="selectColor('amber')" data-color="amber" class="color-opt w-8 h-8 rounded-full bg-amber-500 opacity-70 hover:opacity-100 transition-transform"></button>
+                        <button type="button" onclick="selectColor('cyan')" data-color="cyan" class="color-opt w-8 h-8 rounded-full bg-cyan-500 opacity-70 hover:opacity-100 transition-transform"></button>
+                        <button type="button" onclick="selectColor('purple')" data-color="purple" class="color-opt w-8 h-8 rounded-full bg-purple-500 opacity-70 hover:opacity-100 transition-transform"></button>
+                    </div>
+                </div>
+
+                <!-- Icon Emoji Picker -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Select Icon</label>
+                    <div class="grid grid-cols-7 gap-2" id="emoji-picker">
+                        <button type="button" onclick="selectEmoji('💧')" class="emoji-opt p-2 rounded-xl bg-brand-500/15 border border-brand-500 text-lg flex items-center justify-center">💧</button>
+                        <button type="button" onclick="selectEmoji('🏃')" class="emoji-opt p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 text-lg flex items-center justify-center">🏃</button>
+                        <button type="button" onclick="selectEmoji('📖')" class="emoji-opt p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 text-lg flex items-center justify-center">📖</button>
+                        <button type="button" onclick="selectEmoji('🧘')" class="emoji-opt p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 text-lg flex items-center justify-center">🧘</button>
+                        <button type="button" onclick="selectEmoji('💻')" class="emoji-opt p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 text-lg flex items-center justify-center">💻</button>
+                        <button type="button" onclick="selectEmoji('🥗')" class="emoji-opt p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 text-lg flex items-center justify-center">🥗</button>
+                        <button type="button" onclick="selectEmoji('🎸')" class="emoji-opt p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 text-lg flex items-center justify-center">🎸</button>
+                    </div>
+                </div>
+
+                <div class="pt-3 flex items-center justify-end gap-2 border-t border-slate-200/80 dark:border-slate-800">
+                    <button type="button" onclick="closeAddModal()" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-brand-600 hover:bg-brand-500 text-white shadow-md shadow-brand-600/20 transition-all">
+                        Add Habit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom Delete Confirmation Modal (No browser confirm()) -->
+    <div id="delete-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl" onclick="event.stopPropagation()">
+            <div class="w-11 h-11 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mb-3">
+                <i data-lucide="trash-2" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-bold text-base">Delete Habit?</h3>
+            <p id="delete-modal-desc" class="text-xs text-slate-500 dark:text-slate-400 mt-1">Are you sure you want to remove this habit and its streak history?</p>
+            <div class="mt-5 flex items-center justify-end gap-2">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+                <button id="confirm-delete-btn" class="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-sm">Delete Habit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div id="reset-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl" onclick="event.stopPropagation()">
+            <div class="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center mb-3">
+                <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
+            </div>
+            <h3 class="font-bold text-base">Reset Sample Data?</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">This will restore the default sample habits and weekly logs.</p>
+            <div class="mt-5 flex items-center justify-end gap-2">
+                <button onclick="closeResetModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+                <button onclick="confirmResetData()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-sm">Reset Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 pointer-events-none transition-all duration-300 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold">
+        <i data-lucide="sparkles" class="w-4 h-4 text-brand-400 dark:text-brand-600"></i>
+        <span id="toast-message">Action saved</span>
+    </div>
+
+    <script>
+        // --- Color Palette Mapping for Habits ---
+        const COLOR_MAP = {
+            indigo: {
+                bg: 'bg-indigo-500',
+                light: 'bg-indigo-500/15 text-indigo-500 border-indigo-500/30',
+                ring: 'focus:ring-indigo-500',
+                bar: 'from-indigo-600 to-indigo-400',
+                hex: '#6366f1'
+            },
+            emerald: {
+                bg: 'bg-emerald-500',
+                light: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30',
+                ring: 'focus:ring-emerald-500',
+                bar: 'from-emerald-600 to-emerald-400',
+                hex: '#10b981'
+            },
+            rose: {
+                bg: 'bg-rose-500',
+                light: 'bg-rose-500/15 text-rose-500 border-rose-500/30',
+                ring: 'focus:ring-rose-500',
+                bar: 'from-rose-600 to-rose-400',
+                hex: '#f43f5e'
+            },
+            amber: {
+                bg: 'bg-amber-500',
+                light: 'bg-amber-500/15 text-amber-500 border-amber-500/30',
+                ring: 'focus:ring-amber-500',
+                bar: 'from-amber-600 to-amber-400',
+                hex: '#f59e0b'
+            },
+            cyan: {
+                bg: 'bg-cyan-500',
+                light: 'bg-cyan-500/15 text-cyan-500 border-cyan-500/30',
+                ring: 'focus:ring-cyan-500',
+                bar: 'from-cyan-600 to-cyan-400',
+                hex: '#06b6d4'
+            },
+            purple: {
+                bg: 'bg-purple-500',
+                light: 'bg-purple-500/15 text-purple-500 border-purple-500/30',
+                ring: 'focus:ring-purple-500',
+                bar: 'from-purple-600 to-purple-400',
+                hex: '#a855f7'
+            }
+        };
+
+        const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+        // Determine current day index (Monday = 0 ... Sunday = 6)
+        function getTodayIndex() {
+            const jsDay = new Date().getDay(); // 0 is Sunday
+            return jsDay === 0 ? 6 : jsDay - 1;
+        }
+
+        const todayIndex = getTodayIndex();
+
+        // --- State Variables ---
+        let habits = [];
+        let activeFilter = 'all';
+        let activeChartType = 'bar';
+        let selectedColor = 'indigo';
+        let selectedEmoji = '💧';
+        let habitToDelete = null;
+
+        // Generate realistic default habits relative to todayIndex so the chart looks rich immediately
+        function getDefaultHabits() {
+            const createCheckArray = (pattern) => {
+                // Only mark up to todayIndex as realistic defaults, or full pattern
+                return pattern.map((val, idx) => (idx <= todayIndex ? val : false));
+            };
+
+            return [
+                {
+                    id: 'h1',
+                    name: 'Hydrate (2.5L Water)',
+                    category: 'Health',
+                    emoji: '💧',
+                    color: 'cyan',
+                    target: 7,
+                    baseStreak: 12, // Prior weeks streak
+                    checks: createCheckArray([true, true, true, true, true, true, false])
+                },
+                {
+                    id: 'h2',
+                    name: 'Morning Run / 30m Cardio',
+                    category: 'Health',
+                    emoji: '🏃',
+                    color: 'emerald',
+                    target: 5,
+                    baseStreak: 4,
+                    checks: createCheckArray([true, false, true, true, true, false, false])
+                },
+                {
+                    id: 'h3',
+                    name: 'Deep Work (No Distractions)',
+                    category: 'Work',
+                    emoji: '💻',
+                    color: 'indigo',
+                    target: 5,
+                    baseStreak: 8,
+                    checks: createCheckArray([true, true, true, true, false, false, false])
+                },
+                {
+                    id: 'h4',
+                    name: 'Read 20 Pages',
+                    category: 'Mind',
+                    emoji: '📖',
+                    color: 'amber',
+                    target: 7,
+                    baseStreak: 19,
+                    checks: createCheckArray([true, true, true, true, true, true, true])
+                },
+                {
+                    id: 'h5',
+                    name: 'Mindful Meditation (10m)',
+                    category: 'Mind',
+                    emoji: '🧘',
+                    color: 'purple',
+                    target: 7,
+                    baseStreak: 3,
+                    checks: createCheckArray([false, true, true, true, false, true, false])
+                }
+            ];
+        }
+
+        // --- Load & Save State ---
+        function loadState() {
+            try {
+                const saved = localStorage.getItem('habitflow_state_v1');
+                if (saved) {
+                    habits = JSON.parse(saved);
+                } else {
+                    habits = getDefaultHabits();
+                    saveState();
+                }
+            } catch (e) {
+                habits = getDefaultHabits();
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem('habitflow_state_v1', JSON.stringify(habits));
+            } catch (e) {
+                console.warn('Could not save to localStorage');
+            }
+        }
+
+        // --- Streak Calculation Logic ---
+        // Calculates current continuous streak ending on today (or yesterday if today isn't checked yet)
+        function calculateStreak(habit) {
+            let currentWeekRun = 0;
+            let unbrokenFromStartOfWeek = true;
+
+            // Count consecutive days backwards from todayIndex
+            let checkCursor = todayIndex;
+            // If today is not checked yet, check if streak is alive from yesterday
+            if (!habit.checks[todayIndex] && todayIndex > 0) {
+                checkCursor = todayIndex - 1;
+            } else if (!habit.checks[todayIndex] && todayIndex === 0) {
+                // Monday and not checked yet: streak is baseStreak if they had one
+                return habit.baseStreak || 0;
+            }
+
+            for (let i = checkCursor; i >= 0; i--) {
+                if (habit.checks[i]) {
+                    currentWeekRun++;
+                } else {
+                    unbrokenFromStartOfWeek = false;
+                    break;
+                }
+            }
+
+            if (unbrokenFromStartOfWeek && currentWeekRun > 0) {
+                return (habit.baseStreak || 0) + currentWeekRun;
+            }
+            return currentWeekRun;
+        }
+
+        // --- Date Header Formatting ---
+        function getWeekDates() {
+            const now = new Date();
+            const jsDay = now.getDay();
+            const diffToMonday = jsDay === 0 ? -6 : 1 - jsDay;
+            const monday = new Date(now);
+            monday.setDate(now.getDate() + diffToMonday);
+
+            const dates = [];
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + i);
+                dates.push({
+                    dayName: DAY_NAMES[i],
+                    dateNum: d.getDate(),
+                    monthShort: d.toLocaleString('default', { month: 'short' }),
+                    isToday: i === todayIndex
+                });
+            }
+            return dates;
+        }
+
+        // --- Render Full Dashboard ---
+        function renderDashboard() {
+            const weekDates = getWeekDates();
+            
+            // Update Top Date Range Display
+            const first = weekDates[0];
+            const last = weekDates[6];
+            document.getElementById('current-date-display').textContent = 
+                `${first.monthShort} ${first.dateNum} – ${last.monthShort} ${last.dateNum} • Current Week`;
+
+            renderMatrixHeader(weekDates);
+            renderMatrixBody(weekDates);
+            renderKPICards();
+            renderWeeklyChart(weekDates);
+            renderStreakLeaderboard();
+            lucide.createIcons();
+        }
+
+        // 1. Render Table Header with Days of the Week
+        function renderMatrixHeader(weekDates) {
+            const headerRow = document.getElementById('matrix-days-header');
+            let html = `<th class="py-3.5 pl-5 pr-3 w-64">Habit & Target</th>`;
+
+            weekDates.forEach((d, idx) => {
+                const highlight = d.isToday 
+                    ? 'text-brand-600 dark:text-brand-400 font-bold bg-brand-50/70 dark:bg-brand-950/40' 
+                    : '';
+                html += `
+                    <th class="py-3 px-2 text-center w-14 ${highlight} transition-colors">
+                        <div class="flex flex-col items-center">
+                            <span>${d.dayName}</span>
+                            <span class="mt-0.5 text-xs ${d.isToday ? 'w-6 h-6 rounded-full bg-brand-600 text-white flex items-center justify-center shadow-sm' : 'text-slate-600 dark:text-slate-400'}">${d.dateNum}</span>
+                        </div>
+                    </th>
+                `;
+            });
+
+            html += `
+                <th class="py-3.5 px-3 text-center w-24">Streak</th>
+                <th class="py-3.5 pl-2 pr-4 text-right w-12"></th>
+            `;
+            headerRow.innerHTML = html;
+        }
+
+        // 2. Render Habit Rows & Checkboxes
+        function renderMatrixBody(weekDates) {
+            const tbody = document.getElementById('habits-table-body');
+            const emptyState = document.getElementById('empty-state');
+
+            const filteredHabits = activeFilter === 'all' 
+                ? habits 
+                : habits.filter(h => h.category === activeFilter);
+
+            if (filteredHabits.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            tbody.innerHTML = filteredHabits.map(habit => {
+                const palette = COLOR_MAP[habit.color] || COLOR_MAP.indigo;
+                const weeklyCount = habit.checks.filter(Boolean).length;
+                const streak = calculateStreak(habit);
+                const targetMet = weeklyCount >= habit.target;
+
+                let dayCells = '';
+                for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+                    const checked = habit.checks[dayIdx];
+                    const isTodayCol = dayIdx === todayIndex;
+                    const colBg = isTodayCol ? 'bg-brand-50/40 dark:bg-brand-950/20' : '';
+
+                    dayCells += `
+                        <td class="p-2 text-center ${colBg}">
+                            <button 
+                                onclick="toggleHabitCheck('${habit.id}', ${dayIdx})"
+                                aria-label="Toggle ${habit.name} for ${DAY_NAMES[dayIdx]}"
+                                class="w-9 h-9 rounded-xl mx-auto flex items-center justify-center transition-all duration-150 cursor-pointer select-none
+                                ${checked 
+                                    ? `${palette.bg} text-white shadow-md shadow-${habit.color}-500/20 animate-check` 
+                                    : 'bg-slate-100 dark:bg-slate-800/90 hover:bg-slate-200 dark:hover:bg-slate-700 text-transparent border border-slate-200/70 dark:border-slate-700/70'
+                                }">
+                                <i data-lucide="check" class="w-4 h-4 stroke-[3] ${checked ? 'scale-100' : 'scale-0'} transition-transform"></i>
+                            </button>
+                        </td>
+                    `;
+                }
+
+                return `
+                    <tr class="group hover:bg-slate-50/80 dark:hover:bg-slate-800/30 transition-colors">
+                        <td class="py-3.5 pl-5 pr-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl ${palette.light} border flex items-center justify-center text-lg shrink-0">
+                                    ${habit.emoji}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5">
+                                        <span>${escapeHtml(habit.name)}</span>
+                                        ${targetMet ? `<span title="Weekly goal achieved!" class="text-emerald-500 text-xs">✦</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center gap-2 mt-0.5">
+                                        <span class="text-[11px] font-medium px-2 py-0.2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">${habit.category}</span>
+                                        <span class="text-[11px] text-slate-400 dark:text-slate-500">${weeklyCount}/${habit.target}d goal</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        ${dayCells}
+                        <td class="py-3.5 px-3 text-center">
+                            <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${streak > 0 ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}">
+                                <i data-lucide="flame" class="w-3.5 h-3.5 ${streak >= 5 ? 'fill-amber-500 streak-active' : ''}"></i>
+                                <span>${streak}d</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 pl-2 pr-4 text-right">
+                            <button onclick="openDeleteModal('${habit.id}')" title="Delete habit"
+                                class="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 opacity-70 group-hover:opacity-100 transition-all">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 3. Render KPI Top Summary Cards
+        function renderKPICards() {
+            const totalHabits = habits.length;
+            const completedToday = habits.filter(h => h.checks[todayIndex]).length;
+            const todayPct = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0;
+
+            document.getElementById('stat-today').textContent = `${completedToday}/${totalHabits}`;
+            document.getElementById('stat-today-pct').textContent = `${todayPct}%`;
+
+            // Weekly rate (out of total possible checks across the 7 days)
+            const totalChecksDone = habits.reduce((acc, h) => acc + h.checks.filter(Boolean).length, 0);
+            const totalPossibleWeek = totalHabits * 7;
+            const weeklyRate = totalPossibleWeek > 0 ? Math.round((totalChecksDone / totalPossibleWeek) * 100) : 0;
+
+            document.getElementById('stat-weekly-rate').textContent = `${weeklyRate}%`;
+            document.getElementById('stat-weekly-fraction').textContent = `${totalChecksDone} of ${totalPossibleWeek} check-ins`;
+
+            // Best Streak
+            let bestStreak = 0;
+            let bestHabitName = 'No active streaks';
+            habits.forEach(h => {
+                const s = calculateStreak(h);
+                if (s > bestStreak) {
+                    bestStreak = s;
+                    bestHabitName = `${h.emoji} ${h.name}`;
+                }
+            });
+            document.getElementById('stat-best-streak').textContent = bestStreak;
+            document.getElementById('stat-best-habit').textContent = bestHabitName;
+
+            // Perfect Days (Days where 100% of habits were completed)
+            let perfectDays = 0;
+            if (totalHabits > 0) {
+                for (let d = 0; d < 7; d++) {
+                    const allDone = habits.every(h => h.checks[d]);
+                    if (allDone) perfectDays++;
+                }
+            }
+            document.getElementById('stat-perfect-days').textContent = perfectDays;
+        }
+
+        // 4. Render Interactive Weekly Completion Chart (Bars & Area Curve)
+        function renderWeeklyChart(weekDates) {
+            const totalHabits = habits.length;
+            const dailyStats = weekDates.map((d, idx) => {
+                const count = habits.filter(h => h.checks[idx]).length;
+                const pct = totalHabits > 0 ? Math.round((count / totalHabits) * 100) : 0;
+                return { ...d, count, pct };
+            });
+
+            // Bar Chart View
+            const barsWrapper = document.getElementById('bars-wrapper');
+            barsWrapper.innerHTML = dailyStats.map((stat, idx) => {
+                const isToday = stat.isToday;
+                const barHeight = Math.max(stat.pct, 6); // min 6% height for visual pill
+                const barStyle = stat.pct === 100
+                    ? 'bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-lg shadow-emerald-500/20'
+                    : isToday
+                        ? 'bg-gradient-to-t from-brand-600 to-violet-400 shadow-lg shadow-brand-500/25'
+                        : 'bg-slate-200 dark:bg-slate-800 hover:bg-brand-400/60 dark:hover:bg-brand-500/50';
+
+                return `
+                    <div class="flex-1 flex flex-col items-center h-full justify-end group">
+                        <!-- Tooltip on hover -->
+                        <div class="mb-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow pointer-events-none whitespace-nowrap">
+                            ${stat.count}/${totalHabits} (${stat.pct}%)
+                        </div>
+                        <!-- Bar Track -->
+                        <div class="w-full max-w-[34px] bg-slate-100 dark:bg-slate-800/50 rounded-t-xl h-32 flex items-end p-0.5 overflow-hidden">
+                            <div style="height: ${barHeight}%" class="w-full rounded-t-lg transition-all duration-500 ease-out ${barStyle}"></div>
+                        </div>
+                        <!-- Day Label -->
+                        <span class="mt-2 text-[11px] font-semibold ${isToday ? 'text-brand-600 dark:text-brand-400' : 'text-slate-500 dark:text-slate-400'}">
+                            ${stat.dayName}
+                        </span>
+                    </div>
+                `;
+            }).join('');
+
+            // SVG Smooth Curve Area View
+            const svg = document.getElementById('area-svg');
+            const labelsDiv = document.getElementById('area-labels');
+            const width = 320;
+            const height = 135;
+            const padX = 18;
+            const stepX = (width - padX * 2) / 6;
+
+            const points = dailyStats.map((st, i) => {
+                const x = padX + i * stepX;
+                const y = height - (st.pct / 100) * (height - 25) - 10;
+                return { x, y, pct: st.pct, count: st.count, dayName: st.dayName, isToday: st.isToday };
+            });
+
+            // Build smooth cubic bezier path
+            let pathD = `M ${points[0].x} ${points[0].y}`;
+            for (let i = 0; i < points.length - 1; i++) {
+                const xMid = (points[i].x + points[i + 1].x) / 2;
+                pathD += ` C ${xMid} ${points[i].y}, ${xMid} ${points[i + 1].y}, ${points[i + 1].x} ${points[i + 1].y}`;
+            }
+            const areaD = `${pathD} L ${points[points.length - 1].x} ${height} L ${points[0].x} ${height} Z`;
+
+            svg.innerHTML = `
+                <defs>
+                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#6366f1" stop-opacity="0.45"/>
+                        <stop offset="100%" stop-color="#6366f1" stop-opacity="0.0"/>
+                    </linearGradient>
+                </defs>
+                <!-- Grid baselines -->
+                <line x1="0" y1="15" x2="${width}" y2="15" stroke="currentColor" class="text-slate-200 dark:text-slate-800" stroke-dasharray="3 3" stroke-width="1" />
+                <line x1="0" y1="${height/2}" x2="${width}" y2="${height/2}" stroke="currentColor" class="text-slate-200 dark:text-slate-800" stroke-dasharray="3 3" stroke-width="1" />
+                <!-- Filled Area -->
+                <path d="${areaD}" fill="url(#areaGrad)" />
+                <!-- Stroke Line -->
+                <path d="${pathD}" fill="none" stroke="#6366f1" stroke-width="3" stroke-linecap="round" />
+                <!-- Data Nodes -->
+                ${points.map(p => `
+                    <g class="group cursor-pointer">
+                        <circle cx="${p.x}" cy="${p.y}" r="${p.isToday ? 6 : 4.5}" class="fill-white dark:fill-slate-900 stroke-brand-500 stroke-[3] transition-transform"/>
+                        <text x="${p.x}" y="${p.y - 10}" text-anchor="middle" class="text-[10px] font-bold fill-slate-700 dark:fill-slate-200">${p.pct}%</text>
+                    </g>
+                `).join('')}
+            `;
+
+            labelsDiv.innerHTML = dailyStats.map(s => `
+                <span class="text-[11px] font-semibold ${s.isToday ? 'text-brand-500' : 'text-slate-400'}">${s.dayName}</span>
+            `).join('');
+
+            // Insights Footer
+            const bestDayObj = [...dailyStats].sort((a, b) => b.pct - a.pct)[0];
+            const avgPct = Math.round(dailyStats.reduce((a, b) => a + b.pct, 0) / 7);
+            document.getElementById('chart-insight-text').textContent = 
+                bestDayObj && bestDayObj.pct > 0 
+                ? `Peak day: ${bestDayObj.dayName} (${bestDayObj.pct}% completed)` 
+                : 'Check off habits to see weekly insights';
+            document.getElementById('chart-avg-badge').textContent = `${avgPct}% weekly avg`;
+        }
+
+        // 5. Render Streak Leaderboard & Weekly Goal Progress Bars
+        function renderStreakLeaderboard() {
+            const container = document.getElementById('streak-leaderboard');
+            if (habits.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Add habits to view streak rankings.</p>`;
+                return;
+            }
+
+            const sorted = [...habits].sort((a, b) => calculateStreak(b) - calculateStreak(a));
+
+            container.innerHTML = sorted.map(habit => {
+                const palette = COLOR_MAP[habit.color] || COLOR_MAP.indigo;
+                const streak = calculateStreak(habit);
+                const doneThisWeek = habit.checks.filter(Boolean).length;
+                const pct = Math.min(100, Math.round((doneThisWeek / habit.target) * 100));
+
+                return `
+                    <div class="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800">
+                        <div class="flex items-center justify-between text-xs mb-2">
+                            <div class="flex items-center gap-2 font-semibold truncate pr-2">
+                                <span>${habit.emoji}</span>
+                                <span class="truncate">${escapeHtml(habit.name)}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <span class="text-[11px] text-slate-400">${doneThisWeek}/${habit.target}d</span>
+                                <span class="px-2 py-0.5 rounded-md font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center gap-1">
+                                    🔥 ${streak}d
+                                </span>
+                            </div>
+                        </div>
+                        <div class="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                            <div style="width: ${pct}%" class="h-full rounded-full bg-gradient-to-r ${palette.bar} transition-all duration-500"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- User Interactions ---
+        function toggleHabitCheck(habitId, dayIdx) {
+            const habit = habits.find(h => h.id === habitId);
+            if (!habit) return;
+
+            habit.checks[dayIdx] = !habit.checks[dayIdx];
+            saveState();
+            renderDashboard();
+
+            // Check if all habits for today were just completed -> Celebrate!
+            if (dayIdx === todayIndex && habit.checks[dayIdx]) {
+                const allTodayDone = habits.length > 0 && habits.every(h => h.checks[todayIndex]);
+                if (allTodayDone) {
+                    triggerConfetti();
+                    showToast('🎉 All daily goals completed for today!');
+                }
+            }
+        }
+
+        function checkAllToday() {
+            if (habits.length === 0) return;
+            let changed = false;
+            habits.forEach(h => {
+                if (!h.checks[todayIndex]) {
+                    h.checks[todayIndex] = true;
+                    changed = true;
+                }
+            });
+            if (changed) {
+                saveState();
+                renderDashboard();
+                triggerConfetti();
+                showToast('All habits checked off for today!');
+            } else {
+                showToast('Today is already 100% complete!');
+            }
+        }
+
+        function setFilter(category) {
+            activeFilter = category;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.dataset.filter === category) {
+                    btn.className = 'filter-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-white dark:bg-white dark:text-slate-900 transition-all shrink-0';
+                } else {
+                    btn.className = 'filter-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0';
+                }
+            });
+            renderDashboard();
+        }
+
+        function switchChartType(type) {
+            activeChartType = type;
+            const barView = document.getElementById('bar-chart-view');
+            const areaView = document.getElementById('area-chart-view');
+            const btnBar = document.getElementById('btn-chart-bar');
+            const btnArea = document.getElementById('btn-chart-area');
+
+            if (type === 'bar') {
+                barView.classList.remove('hidden');
+                areaView.classList.add('hidden');
+                btnBar.className = 'px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 shadow-sm text-slate-900 dark:text-white transition-all';
+                btnArea.className = 'px-2.5 py-1 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all';
+            } else {
+                barView.classList.add('hidden');
+                areaView.classList.remove('hidden');
+                btnArea.className = 'px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 shadow-sm text-slate-900 dark:text-white transition-all';
+                btnBar.className = 'px-2.5 py-1 rounded-lg text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all';
+            }
+        }
+
+        // --- Modal Controls (Add Habit) ---
+        function openAddModal() {
+            const modal = document.getElementById('add-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => document.getElementById('habit-name-input').focus(), 50);
+        }
+
+        function closeAddModal() {
+            const modal = document.getElementById('add-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('add-habit-form').reset();
+        }
+
+        function selectColor(color) {
+            selectedColor = color;
+            document.querySelectorAll('.color-opt').forEach(btn => {
+                if (btn.dataset.color === color) {
+                    btn.className = `color-opt w-8 h-8 rounded-full bg-${color}-500 ring-2 ring-offset-2 ring-${color}-500 dark:ring-offset-slate-900 transition-transform scale-110`;
+                } else {
+                    const c = btn.dataset.color;
+                    btn.className = `color-opt w-8 h-8 rounded-full bg-${c}-500 opacity-60 hover:opacity-100 transition-transform`;
+                }
+            });
+        }
+
+        function selectEmoji(emoji) {
+            selectedEmoji = emoji;
+            document.querySelectorAll('.emoji-opt').forEach(btn => {
+                if (btn.textContent.trim() === emoji) {
+                    btn.className = 'emoji-opt p-2 rounded-xl bg-brand-500/15 border border-brand-500 text-lg flex items-center justify-center scale-105 transition-transform';
+                } else {
+                    btn.className = 'emoji-opt p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-transparent hover:border-slate-300 text-lg flex items-center justify-center transition-transform';
+                }
+            });
+        }
+
+        function handleCreateHabit(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('habit-name-input');
+            const categoryInput = document.getElementById('habit-category-input');
+            const targetInput = document.getElementById('habit-target-input');
+
+            const name = nameInput.value.trim();
+            if (!name) return;
+
+            const newHabit = {
+                id: 'h_' + Date.now(),
+                name,
+                category: categoryInput.value,
+                target: parseInt(targetInput.value, 10) || 7,
+                color: selectedColor,
+                emoji: selectedEmoji,
+                baseStreak: 0,
+                checks: [false, false, false, false, false, false, false]
+            };
+
+            habits.unshift(newHabit);
+            saveState();
+            closeAddModal();
+            renderDashboard();
+            showToast(`Added "${name}" to your tracker!`);
+        }
+
+        // --- Delete Habit Modal ---
+        function openDeleteModal(habitId) {
+            habitToDelete = habitId;
+            const habit = habits.find(h => h.id === habitId);
+            if (!habit) return;
+
+            document.getElementById('delete-modal-desc').textContent = 
+                `Are you sure you want to delete "${habit.name}"? This will remove its weekly logs and current streak.`;
+            
+            const modal = document.getElementById('delete-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            document.getElementById('confirm-delete-btn').onclick = () => {
+                habits = habits.filter(h => h.id !== habitToDelete);
+                saveState();
+                closeDeleteModal();
+                renderDashboard();
+                showToast('Habit deleted');
+            };
+        }
+
+        function closeDeleteModal() {
+            const modal = document.getElementById('delete-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            habitToDelete = null;
+        }
+
+        // --- Reset Modal ---
+        function openResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeResetModal() {
+            const modal = document.getElementById('reset-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function confirmResetData() {
+            habits = getDefaultHabits();
+            saveState();
+            closeResetModal();
+            renderDashboard();
+            showToast('Sample habits restored!');
+        }
+
+        // --- Utilities: Theme, Confetti, Toast, Escape HTML ---
+        function toggleTheme() {
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+        }
+
+        function triggerConfetti() {
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 65,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2800);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        // Close modals on backdrop click or Escape key
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeAddModal();
+                closeDeleteModal();
+                closeResetModal();
+            }
+        });
+
+        document.getElementById('add-modal').addEventListener('click', closeAddModal);
+        document.getElementById('delete-modal').addEventListener('click', closeDeleteModal);
+        document.getElementById('reset-modal').addEventListener('click', closeResetModal);
+
+        // Initialize App on Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState();
+            renderDashboard();
+        });
+    </script>
+</body>
+</html>
